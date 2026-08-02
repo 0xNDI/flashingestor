@@ -74,6 +74,14 @@ type IngestionManager struct {
 	pageSizeOverride    int          // override page size for all LDAP queries (0 = use defaults)
 	ldapWorkers         int          // max concurrent LDAP query jobs
 	jobFilter           map[string]bool // if non-empty, only run jobs whose name is in this set (lowercase keys)
+	done                chan struct{}  // closed when the ingestion run has fully completed
+}
+
+// Wait blocks until the ingestion run started by start() has fully completed.
+func (m *IngestionManager) Wait() {
+	if m.done != nil {
+		<-m.done
+	}
 }
 
 // JobManager methods
@@ -245,6 +253,7 @@ func (m *IngestionManager) start(
 	m.domainQueue = make(chan DomainRequest, 100)
 	m.trustEntriesChan = make(chan *ldap.Entry, 100)
 	m.configEntriesChan = make(chan *ldap.Entry, 100)
+	m.done = make(chan struct{})
 
 	// Reset counters for new ingestion run
 	m.domainCount.Store(0)
@@ -305,6 +314,7 @@ func (m *IngestionManager) start(
 			m.logger.Log0("🫠 [red]No domains were ingested.[-]")
 		}
 		m.logger.Log0("-")
+		close(m.done)
 	}()
 }
 

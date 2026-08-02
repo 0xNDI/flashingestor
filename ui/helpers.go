@@ -2,10 +2,21 @@ package ui
 
 import (
 	"fmt"
+	"os"
+	"regexp"
 	"time"
 
 	"github.com/Macmod/flashingestor/config"
 )
+
+// tviewTagPattern matches tview color/region tags such as [blue], [-],
+// ["ingest"], [black:blue], etc. It is used to strip tags before printing
+// log lines to stdout in headless mode.
+var tviewTagPattern = regexp.MustCompile(`\[[^\]]*\]`)
+
+func stripTviewTags(s string) string {
+	return tviewTagPattern.ReplaceAllString(s, "")
+}
 
 // padString pads a string to the specified width for consistent table alignment
 func padString(s string, width int) string {
@@ -33,6 +44,13 @@ func (app *Application) SwitchToPage(pageName string) {
 
 // UpdateLog adds a message to the log panel with timestamp
 func (app *Application) UpdateLog(message string) {
+	if app.headless {
+		// In headless mode there is no log panel; print to stdout instead.
+		currentTime := time.Now().Format("2006-01-02 15:04:05")
+		fmt.Fprintf(os.Stdout, "[%s] %s\n", currentTime, stripTviewTags(message))
+		return
+	}
+
 	currentTime := time.Now()
 	formattedTime := currentTime.Format("2006-01-02 15:04:05")
 

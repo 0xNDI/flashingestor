@@ -147,6 +147,79 @@ The options `compress_output` and `cleanup_after_compression` can help keep the 
 > 
 > A nice way of inspecting these files would be to use [JQ](https://jqlang.org/)/[FX](https://github.com/antonmedv/fx), or your favorite programming language 🙂
 
+# Headless Mode
+
+For scripting and automation, `flashingestor` can also run **fully non-interactively** from the command line, producing the BloodHound `.zip` without ever opening the TUI. This is a quick-and-dirty headless path that reuses the same collection/conversion engine as the interactive tool.
+
+Add `--headless` to your usual authentication command and it runs **Ingest → Convert**, writes the dump, and exits:
+
+```bash
+./flashingestor \
+  -u <USER>@<DOMAIN> -p <PASSWORD> \
+  --dc <DC> --dns <DNS> \
+  --headless
+```
+
+No TUI is started and no keypresses are required. The resulting archive lands under the output directory:
+
+```
+output/bloodhound/<timestamp>_BloodHound.zip
+```
+
+## Headless flags
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--headless` | `false` | Run non-interactively without the TUI. Executes the steps given by `--steps`, then exits. |
+| `--steps` | `ingest,convert` | Comma-separated steps to run in `--headless` mode. Valid values: `ingest`, `remote`, `convert`. |
+
+`--headless` does not change authentication — use the same `-u`/`-p`, `-H`, `--pfx`, `--cert`/`--key`, `--aes-key`, `--ccache`, `--remote-*`, etc. options you would use in the TUI.
+
+## Selecting steps
+
+Steps always execute in the canonical order **ingest → remote → convert**, regardless of the order they are listed in `--steps`. Unrecognized steps are ignored; an empty `--steps` falls back to `ingest,convert`.
+
+**DC-only collection (default)** — mirrors the `Ctrl+l` → `Ctrl+s` workflow:
+
+```bash
+./flashingestor -u <USER>@<DOMAIN> -p <PASSWORD> --dc <DC> --dns <DNS> --headless
+```
+
+**Full collection including remote** — adds the active RPC/SMB/HTTP collection step (`Ctrl+r` equivalent). Use the same credentials, or a separate local-admin account via `--remote-*`:
+
+```bash
+./flashingestor -u <USER>@<DOMAIN> -p <PASSWORD> \
+  --dc <DC> --dns <DNS> \
+  --steps ingest,remote,convert --headless
+```
+
+> [!NOTE]
+> Remote collection reaches out to every discovered computer over the network and is louder/slower than the LDAP-only path. It is skipped automatically if no remote-capable credentials are available.
+
+**Convert only** — reuse `output/ldap/**/*.msgpack` from a previous run and just regenerate the BloodHound zip:
+
+```bash
+./flashingestor --steps convert --headless
+```
+
+## Output & logging
+
+Headless mode uses the same `--outdir` (`./output` by default) and intermediate layout (`output/ldap`, `output/remote`, `output/bloodhound`) as the TUI. Log lines are written to **stdout** (tview color tags stripped) and timestamped:
+
+```
+[2026-07-31 17:39:11] 🚀 Starting LDAP ingestion of "REBOUND.HTB"...
+[2026-07-31 17:39:15] ✅ Ingestion of "REBOUND.HTB" completed in 3 seconds
+[2026-07-31 17:39:15] 🔀 Starting BloodHound conversion...
+[2026-07-31 17:39:15] ✅ BloodHound dump: "output/bloodhound/20260731173915_BloodHound.zip" (74.2 KB)
+[2026-07-31 17:39:15] ✅ Headless run finished.
+```
+
+`--log <file>` still mirrors the same output to a file, and `-v` / `-vv` increase verbosity as in the TUI.
+
+The process exits **0** once all selected steps finish and logs are flushed. Steps that cannot run are skipped with a warning rather than aborting the run — `ingest` is skipped if no ingestion credentials are supplied, and `remote` is skipped if no remote-capable credentials are supplied. Because there is no overwrite prompt in headless mode, existing intermediate `msgpack` files are overwritten on `ingest`/`remote` (equivalent to choosing "Yes" in the interactive dialog).
+
+See [docs/headless.md](docs/headless.md) for the full reference.
+
 # Contributing
 
 Contributions are welcome by [opening an issue](https://github.com/Macmod/flashingestor/issues/new) or by [submitting a pull request](https://github.com/Macmod/flashingestor/pulls).

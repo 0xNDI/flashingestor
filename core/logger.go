@@ -52,6 +52,7 @@ type Logger struct {
 	channel     chan LogMessage
 	file        *os.File
 	logCallback func(string)
+	done        chan struct{}
 }
 
 // NewLogger creates a new logger instance and initializes the global verbosity level.
@@ -62,6 +63,7 @@ func NewLogger(channel chan LogMessage, file *os.File, logCallback func(string),
 		channel:     channel,
 		file:        file,
 		logCallback: logCallback,
+		done:        make(chan struct{}),
 	}
 }
 
@@ -82,6 +84,7 @@ func (l *Logger) Log2(format string, args ...interface{}) {
 
 // Start begins processing log messages.
 func (l *Logger) Start() {
+	defer close(l.done)
 	for logMsg := range l.channel {
 		// Skip verbose messages if verbose level is too low
 		currentLevel := int(globalVerbosity.Load())
@@ -100,6 +103,14 @@ func (l *Logger) Start() {
 			fmt.Fprintf(l.file, "[%s] %s\n", timestamp, logMsg.Message)
 		}
 	}
+}
+
+// Done returns a channel that is closed once the logger has finished
+// draining its message channel (i.e. after the channel was closed). Callers
+// that close the log channel can wait on this to ensure all messages have
+// been written out.
+func (l *Logger) Done() <-chan struct{} {
+	return l.done
 }
 
 // OpenLogFile opens a log file for appending.

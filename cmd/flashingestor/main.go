@@ -39,6 +39,9 @@ func main() {
 	}
 
 	uiApp := ui.NewApplication()
+	if cfg.Headless {
+		uiApp = ui.NewHeadlessApplication()
+	}
 	uiApp.SetRuntimeOptions(cfg.RuntimeOptions)
 
 	jobManager := newJobManager()
@@ -362,6 +365,15 @@ func main() {
 
 	if disableRemote {
 		uiApp.DisableRemoteCollection()
+	}
+
+	if cfg.Headless {
+		runHeadless(
+			cfg, logger, logChannel, &ingestMgr, conversionMgr, remoteMgr,
+			disableIngest, disableRemote, remoteNoCrossDomain,
+			initialDomain, initialBaseDN, initialDC,
+		)
+		return
 	}
 
 	if err := uiApp.Run(); err != nil {

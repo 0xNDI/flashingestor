@@ -17,6 +17,7 @@ type RemoteCollectionManager struct {
 	bhInst *bloodhound.BH
 	uiApp  *ui.Application
 	logger *core.Logger
+	done   chan struct{}
 }
 
 func newRemoteCollectionManager(
@@ -53,6 +54,7 @@ func (r *RemoteCollectionManager) checkMsgpackFilesExist() (bool, error) {
 
 func (r *RemoteCollectionManager) start(auth *config.CredentialMgr, noCrossDomain bool) {
 	r.bhInst.ResetAbortFlag()
+	r.done = make(chan struct{})
 	r.uiApp.SetAbortCallback(func() {
 		if r.bhInst.RequestAbort() {
 			r.logger.Log0("🛑 [red]Abort requested for remote collection...[-]")
@@ -84,6 +86,7 @@ func (r *RemoteCollectionManager) start(auth *config.CredentialMgr, noCrossDomai
 			spinner.Stop()
 			r.uiApp.SetAbortCallback(nil)
 			r.uiApp.SetRunning(false, "")
+			close(r.done)
 		}()
 
 		processStartTime := time.Now()
@@ -96,6 +99,13 @@ func (r *RemoteCollectionManager) start(auth *config.CredentialMgr, noCrossDomai
 			r.logger.Log0("✅ [green]Remote collection completed in %s[-]", core.FormatDuration(processDuration))
 		}
 	}()
+}
+
+// Wait blocks until the remote collection started by start() has finished.
+func (r *RemoteCollectionManager) Wait() {
+	if r.done != nil {
+		<-r.done
+	}
 }
 
 func (r *RemoteCollectionManager) handleRemoteCollectionUpdates(updates <-chan core.RemoteCollectionUpdate, spinner *ui.Spinner, uiApp *ui.Application) {

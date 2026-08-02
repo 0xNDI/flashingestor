@@ -14,6 +14,7 @@ type ConversionManager struct {
 	bhInst *bloodhound.BH
 	uiApp  *ui.Application
 	logger *core.Logger
+	done   chan struct{}
 }
 
 func newConversionManager(
@@ -30,6 +31,7 @@ func newConversionManager(
 
 func (c *ConversionManager) start() {
 	c.bhInst.ResetAbortFlag()
+	c.done = make(chan struct{})
 	c.uiApp.SetAbortCallback(func() {
 		if c.bhInst.RequestAbort() {
 			c.logger.Log0("🛑 [red]Abort requested for BloodHound conversion...[-]")
@@ -65,6 +67,7 @@ func (c *ConversionManager) start() {
 			c.bhInst.ConversionUpdates = nil
 			c.uiApp.SetAbortCallback(nil)
 			c.uiApp.SetRunning(false, "")
+			close(c.done)
 		}()
 
 		processStartTime := time.Now()
@@ -79,6 +82,13 @@ func (c *ConversionManager) start() {
 		}
 		c.bhInst.ResetAbortFlag()
 	}()
+}
+
+// Wait blocks until the conversion started by start() has finished.
+func (c *ConversionManager) Wait() {
+	if c.done != nil {
+		<-c.done
+	}
 }
 
 func (c *ConversionManager) handleConversionUpdate(uiApp *ui.Application, spinner *ui.Spinner, update core.ConversionUpdate) {

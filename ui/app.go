@@ -48,6 +48,8 @@ type Application struct {
 	clearCacheCb          func()
 	runtimeOptions        *config.RuntimeOptions // Runtime configuration options
 
+	headless bool // When true, the TUI is not started; UI calls become no-ops and logs go to stdout
+
 	// Throttled update mechanism
 	pendingUpdate  atomic.Bool   // Whether a UI update is pending
 	updateTicker   *time.Ticker  // Ticker for throttling updates
@@ -65,6 +67,47 @@ func NewApplication() *Application {
 	}
 	app.setupUI()
 	app.startThrottledUpdates()
+	return app
+}
+
+// NewHeadlessApplication creates an application instance configured for
+// headless (non-interactive) execution. The TUI is never started; the
+// embedded tview blocking primitives (Draw/QueueUpdate/QueueUpdateDraw) are
+// neutralized so the collection/conversion engine can run directly from the
+// command line.
+func NewHeadlessApplication() *Application {
+	app := NewApplication()
+	app.headless = true
+	return app
+}
+
+// Draw shadows the embedded tview.Application.Draw so that in headless mode it
+// does not enqueue work onto the (never-drained) event loop (which would block).
+func (app *Application) Draw() *Application {
+	if app.headless {
+		return app
+	}
+	app.Application.Draw()
+	return app
+}
+
+// QueueUpdate shadows the embedded tview.Application.QueueUpdate. In headless
+// mode the closure is intentionally dropped because the primitives are never
+// displayed and the event loop is not running.
+func (app *Application) QueueUpdate(f func()) *Application {
+	if app.headless {
+		return app
+	}
+	app.Application.QueueUpdate(f)
+	return app
+}
+
+// QueueUpdateDraw shadows the embedded tview.Application.QueueUpdateDraw.
+func (app *Application) QueueUpdateDraw(f func()) *Application {
+	if app.headless {
+		return app
+	}
+	app.Application.QueueUpdateDraw(f)
 	return app
 }
 

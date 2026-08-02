@@ -40,6 +40,12 @@ type Config struct {
 	LdapxFilter      string
 	LdapxAttrs       string
 	LdapxBaseDN      string
+
+	// Headless mode: run collection/conversion non-interactively without the TUI.
+	Headless bool
+	// Steps is the comma-separated list of steps to run in headless mode
+	// (valid values: ingest, remote, convert). Empty defaults to "ingest,convert".
+	Steps string
 }
 
 const DEFAULT_REMOTE_METHOD_TIMEOUT = 4 * time.Second
@@ -134,6 +140,10 @@ func ParseFlags() (*Config, error) {
 	pflag.StringVar(&config.JobFilter, "jobs", "", "Comma-separated list of LDAP jobs to run (e.g., 'Users,Groups'). Empty = run all")
 	pflag.DurationVar(&config.RemoteComputerTimeout, "computer-timeout", DEFAULT_REMOTE_COMPUTER_TIMEOUT, "Timeout per computer for remote collection")
 	pflag.DurationVar(&config.RemoteMethodTimeout, "method-timeout", DEFAULT_REMOTE_METHOD_TIMEOUT, "Timeout per method of remote collection")
+
+	// Headless mode flags
+	pflag.BoolVar(&config.Headless, "headless", false, "Run non-interactively without the TUI (execute the steps given by --steps then exit)")
+	pflag.StringVar(&config.Steps, "steps", "ingest,convert", "Comma-separated steps to run in --headless mode: ingest, remote, convert")
 
 	// LDAP obfuscation flags
 	pflag.StringVarP(&config.LdapxFilter, "ldapx-filter", "f", "", "LDAP filter obfuscation middleware chain (e.g., 'OGDR', read the docs for details)")
